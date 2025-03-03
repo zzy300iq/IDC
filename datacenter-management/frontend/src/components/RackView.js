@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Modal, Form, Input, InputNumber, Select, message, Row, Col, Statistic, Tag, Popconfirm } from 'antd';
+import { Card, Button, Modal, Form, Input, InputNumber, Select, message, Row, Col, Statistic, Tag, Popconfirm, Space } from 'antd';
 import { PlusOutlined, DatabaseOutlined, ThunderboltOutlined, DesktopOutlined, ApiOutlined, HddOutlined, DeleteOutlined, EditOutlined, CheckOutlined, CloseOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { Stage, Layer, Rect, Text, Group } from 'react-konva';
@@ -221,8 +221,7 @@ const RackView = () => {
     message.info('已取消编辑');
   };
 
-  const handleEditDevice = (device, e) => {
-    e.stopPropagation();
+  const handleEditDevice = (device) => {
     setEditingDevice(device);
     editForm.setFieldsValue({
       name: device.name,
@@ -259,6 +258,12 @@ const RackView = () => {
     }
   };
 
+  const handleDeviceClick = (device, e) => {
+    if (!isEditMode) {
+      navigate(`/device/${device.id}`);
+    }
+  };
+
   const renderDeviceTooltip = (device) => (
     <div
       style={{
@@ -290,10 +295,18 @@ const RackView = () => {
   );
 
   if (!rack) {
-    return <div style={{ textAlign: 'center', padding: '50px' }}>
-      <h2>加载机柜信息中...</h2>
-      <p>机柜 ID: {id}</p>
-    </div>;
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '50px', 
+        background: '#fff',
+        borderRadius: '4px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        margin: '24px'
+      }}>
+        <h2>正在加载机柜信息...</h2>
+      </div>
+    );
   }
 
   const totalPower = devices.reduce((sum, device) => sum + device.power_consumption, 0) / 1000; // 转换为kW
@@ -462,6 +475,7 @@ const RackView = () => {
                             setHoveredDevice(device);
                           }}
                           onMouseLeave={() => setHoveredDevice(null)}
+                          onClick={() => handleDeviceClick(device)}
                         >
                           <Rect
                             width={300}
@@ -515,48 +529,63 @@ const RackView = () => {
                   borderRadius: '4px',
                   cursor: 'pointer',
                   transition: 'all 0.3s',
-                  background: hoveredDevice?.id === device.id ? '#e6f7ff' : '#fff',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
+                  background: hoveredDevice?.id === device.id ? '#e6f7ff' : '#fff'
                 }}
+                onClick={() => !isEditMode && navigate(`/device/${device.id}`)}
                 onMouseEnter={() => setHoveredDevice(device)}
                 onMouseLeave={() => setHoveredDevice(null)}
               >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
-                    {DeviceTypeIcons[device.device_type]}
-                    <span style={{ marginLeft: '8px', fontWeight: 'bold' }}>{device.name}</span>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    <Tag color={DeviceTypeColors[device.device_type]}>{device.device_type}</Tag>
-                    <Tag color="#2db7f5">{device.power_consumption}W</Tag>
-                  </div>
-                </div>
-                {!isEditMode && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <Button
-                      type="text"
-                      icon={<EditOutlined />}
-                      onClick={(e) => handleEditDevice(device, e)}
-                      style={{ marginRight: 8 }}
-                    />
-                    <Popconfirm
-                      title="确定要删除这个设备吗？"
-                      description="删除后将无法恢复。"
-                      onConfirm={() => handleDeleteDevice(device.id)}
-                      okText="确定"
-                      cancelText="取消"
-                    >
-                      <Button 
-                        type="text" 
-                        danger 
-                        icon={<DeleteOutlined />}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </Popconfirm>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                      {DeviceTypeIcons[device.device_type]}
+                      <span style={{ marginLeft: '8px', fontWeight: 'bold' }}>{device.name}</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      <Tag color="blue">{device.device_type}</Tag>
+                      <Tag color="green">{device.position_u}U</Tag>
+                      <Tag color="purple">{device.power_consumption}W</Tag>
+                    </div>
                   </div>
-                )}
+                  {!isEditMode && (
+                    <Space>
+                      <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation();  // 阻止事件冒泡
+                          handleEditDevice(device);
+                        }}
+                      />
+                      <Popconfirm
+                        title="确定要删除这个设备吗？"
+                        description={
+                          <div>
+                            <p>设备名称：{device.name}</p>
+                            <p style={{ color: '#ff4d4f' }}>删除后将无法恢复！</p>
+                          </div>
+                        }
+                        onConfirm={(e) => {
+                          e.stopPropagation();  // 阻止事件冒泡
+                          handleDeleteDevice(device.id);
+                        }}
+                        onCancel={(e) => {
+                          e.stopPropagation();  // 阻止事件冒泡
+                        }}
+                        okText="确定删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true }}
+                      >
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => e.stopPropagation()}  // 阻止事件冒泡
+                        />
+                      </Popconfirm>
+                    </Space>
+                  )}
+                </div>
               </div>
             ))}
           </Card>

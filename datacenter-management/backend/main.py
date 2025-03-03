@@ -152,6 +152,13 @@ def get_devices(rack_id: int = None, skip: int = 0, limit: int = 100, db: Sessio
         query = query.filter(models.Device.rack_id == rack_id)
     return query.offset(skip).limit(limit).all()
 
+@app.get("/devices/{device_id}", response_model=schemas.Device)
+def get_device(device_id: int, db: Session = Depends(get_db)):
+    device = db.query(models.Device).filter(models.Device.id == device_id).first()
+    if device is None:
+        raise HTTPException(status_code=404, detail="设备未找到")
+    return device
+
 @app.put("/devices/{device_id}", response_model=schemas.Device)
 def update_device(device_id: int, device: schemas.DeviceCreate, db: Session = Depends(get_db)):
     db_device = db.query(models.Device).filter(models.Device.id == device_id).first()
@@ -185,4 +192,98 @@ def delete_device(device_id: int, db: Session = Depends(get_db)):
     
     db.delete(device)
     db.commit()
-    return {"message": "设备已成功删除"} 
+    return {"message": "设备已成功删除"}
+
+# 端口相关接口
+@app.post("/ports/", response_model=schemas.Port)
+def create_port(port: schemas.PortCreate, db: Session = Depends(get_db)):
+    db_port = models.Port(**port.dict())
+    db.add(db_port)
+    db.commit()
+    db.refresh(db_port)
+    return db_port
+
+@app.get("/ports/", response_model=List[schemas.Port])
+def get_ports(device_id: int = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    query = db.query(models.Port)
+    if device_id:
+        query = query.filter(models.Port.device_id == device_id)
+    return query.offset(skip).limit(limit).all()
+
+@app.get("/ports/{port_id}", response_model=schemas.Port)
+def get_port(port_id: int, db: Session = Depends(get_db)):
+    port = db.query(models.Port).filter(models.Port.id == port_id).first()
+    if port is None:
+        raise HTTPException(status_code=404, detail="端口未找到")
+    return port
+
+@app.put("/ports/{port_id}", response_model=schemas.Port)
+def update_port(port_id: int, port: schemas.PortCreate, db: Session = Depends(get_db)):
+    db_port = db.query(models.Port).filter(models.Port.id == port_id).first()
+    if db_port is None:
+        raise HTTPException(status_code=404, detail="端口未找到")
+    
+    for key, value in port.dict().items():
+        setattr(db_port, key, value)
+    
+    db.commit()
+    db.refresh(db_port)
+    return db_port
+
+@app.delete("/ports/{port_id}")
+def delete_port(port_id: int, db: Session = Depends(get_db)):
+    port = db.query(models.Port).filter(models.Port.id == port_id).first()
+    if port is None:
+        raise HTTPException(status_code=404, detail="端口未找到")
+    
+    db.delete(port)
+    db.commit()
+    return {"message": "端口已成功删除"}
+
+@app.put("/ports/{port_id}/connect")
+def connect_ports(
+    port_id: int, 
+    remote_port_id: int,
+    db: Session = Depends(get_db)
+):
+    # 获取两个端口
+    port1 = db.query(models.Port).filter(models.Port.id == port_id).first()
+    port2 = db.query(models.Port).filter(models.Port.id == remote_port_id).first()
+    
+    if not port1 or not port2:
+        raise HTTPException(status_code=404, detail="端口未找到")
+    
+    if port1.is_occupied or port2.is_occupied:
+        raise HTTPException(status_code=400, detail="端口已被占用")
+    
+    # 建立连接
+    port1.remote_device_id = port2.device_id
+    port1.remote_port_id = port2.id
+    port1.is_occupied = True
+    
+    port2.remote_device_id = port1.device_id
+    port2.remote_port_id = port1.id
+    port2.is_occupied = True
+    
+    db.commit()
+    return {"message": "端口连接成功"}
+
+@app.put("/ports/{port_id}/disconnect")
+def disconnect_port(port_id: int, db: Session = Depends(get_db)):
+    port = db.query(models.Port).filter(models.Port.id == port_id).first()
+    if not port:
+        raise HTTPException(status_code=404, detail="端口未找到")
+    
+    if port.remote_port_id:
+        remote_port = db.query(models.Port).filter(models.Port.id == port.remote_port_id).first()
+        if remote_port:
+            remote_port.remote_device_id = None
+            remote_port.remote_port_id = None
+            remote_port.is_occupied = False
+    
+    port.remote_device_id = None
+    port.remote_port_id = None
+    port.is_occupied = False
+    
+    db.commit()
+    return {"message": "端口断开连接成功"} 

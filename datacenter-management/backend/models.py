@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -54,4 +54,24 @@ class Device(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    rack = relationship("Rack", back_populates="devices") 
+    rack = relationship("Rack", back_populates="devices")
+    ports = relationship("Port", back_populates="device", foreign_keys="Port.device_id", cascade="all, delete-orphan")
+
+class Port(Base):
+    __tablename__ = "ports"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id", ondelete="CASCADE"))
+    name = Column(String(50))         # 端口名称，如 "GE1/0/1"
+    type = Column(String(50))         # 端口类型，如 "GE", "10GE", "FC" 等
+    speed = Column(Integer)           # 端口速率（Mbps）
+    is_occupied = Column(Boolean, default=False)  # 端口是否被占用
+    business_info = Column(String(200))  # 业务信息
+    remote_device_id = Column(Integer, ForeignKey("devices.id", ondelete="SET NULL"), nullable=True)  # 连接的远端设备
+    remote_port_id = Column(Integer, ForeignKey("ports.id", ondelete="SET NULL"), nullable=True)      # 连接的远端端口
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    device = relationship("Device", foreign_keys=[device_id], back_populates="ports")
+    remote_device = relationship("Device", foreign_keys=[remote_device_id])
+    remote_port = relationship("Port", foreign_keys=[remote_port_id], remote_side=[id]) 

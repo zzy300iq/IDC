@@ -260,7 +260,18 @@ const RoomView = () => {
   };
 
   if (!datacenter) {
-    return <div>正在加载机房信息...</div>;
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '50px', 
+        background: '#fff',
+        borderRadius: '4px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        margin: '24px'
+      }}>
+        <h2>正在加载机房信息...</h2>
+      </div>
+    );
   }
 
   const totalPower = racks.reduce((sum, rack) => sum + rack.max_power, 0);

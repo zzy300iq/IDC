@@ -4,6 +4,7 @@ import { Layout } from 'antd';
 import RoomList from './components/RoomList';
 import RoomView from './components/RoomView';
 import RackView from './components/RackView';
+import DeviceView from './components/DeviceView';
 import Navigation from './components/Navigation';
 
 const { Header, Content } = Layout;
@@ -20,6 +21,7 @@ const App = () => {
             <Route path="/" element={<RoomList />} />
             <Route path="/datacenter/:id" element={<RoomView />} />
             <Route path="/rack/:id" element={<RackView />} />
+            <Route path="/device/:id" element={<DeviceView />} />
           </Routes>
         </Content>
       </Layout>
