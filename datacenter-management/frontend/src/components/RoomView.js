@@ -248,6 +248,17 @@ const RoomView = () => {
     }
   };
 
+  const handleDeleteDataCenter = async () => {
+    try {
+      await axios.delete(`http://localhost:8000/datacenters/${id}`);
+      message.success('机房删除成功');
+      navigate('/');  // 删除成功后返回机房列表
+    } catch (error) {
+      console.error('Error deleting datacenter:', error);
+      message.error('删除机房失败');
+    }
+  };
+
   if (!datacenter) {
     return <div>正在加载机房信息...</div>;
   }
@@ -303,6 +314,29 @@ const RoomView = () => {
               </>
             ) : (
               <>
+                <Popconfirm
+                  title="确定要删除这个机房吗？"
+                  description={
+                    <div>
+                      <p>机房名称：{datacenter.name}</p>
+                      <p>包含 {racks.length} 个机柜</p>
+                      <p style={{ color: '#ff4d4f' }}>删除后将无法恢复，包括所有机柜和设备！</p>
+                    </div>
+                  }
+                  onConfirm={handleDeleteDataCenter}
+                  okText="确定删除"
+                  cancelText="取消"
+                  okButtonProps={{ danger: true }}
+                >
+                  <Button
+                    type="primary"
+                    danger
+                    icon={<DeleteOutlined />}
+                    style={{ marginRight: 8 }}
+                  >
+                    删除机房
+                  </Button>
+                </Popconfirm>
                 <Button
                   type="primary"
                   icon={<EditOutlined />}

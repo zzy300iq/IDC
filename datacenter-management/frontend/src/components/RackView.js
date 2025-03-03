@@ -23,7 +23,7 @@ const DeviceTypeColors = {
 
 const RackView = () => {
   const { id } = useParams();
-  const navigate = useNavigate();  // 添加导航hook
+  const navigate = useNavigate();
   const [rack, setRack] = useState(null);
   const [devices, setDevices] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -31,9 +31,10 @@ const RackView = () => {
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [hoveredDevice, setHoveredDevice] = useState(null);
   const stageRef = useRef(null);
-  const GRID_SIZE = 60;  // 增加网格高度到60px
+  const GRID_SIZE = 15;
   const [isEditMode, setIsEditMode] = useState(false);
-  const [originalDevices, setOriginalDevices] = useState([]);  // 存储编辑前的设备位置
+  const [originalDevices, setOriginalDevices] = useState([]);
+  const [tempDevices, setTempDevices] = useState([]);
   const [isEditDeviceModalVisible, setIsEditDeviceModalVisible] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
   const [editForm] = Form.useForm();
@@ -102,7 +103,7 @@ const RackView = () => {
     const boundedX = Math.max(0, Math.min(x, stageWidth - 300));
     
     // 限制垂直移动范围，考虑设备高度
-    const maxY = stageHeight - (device.height_u * scale); // 考虑设备实际高度
+    const maxY = stageHeight - (device.height_u * scale);
     const minY = 0;
     const boundedY = Math.max(minY, Math.min(y, maxY));
     
@@ -111,7 +112,7 @@ const RackView = () => {
     node.x(boundedX);
   };
 
-  const handleDeviceDragEnd = async (device, e) => {
+  const handleDeviceDragEnd = (device, e) => {
     const node = e.target;
     const stage = node.getStage();
     const scale = GRID_SIZE;
@@ -128,7 +129,7 @@ const RackView = () => {
     newPositionU = Math.max(device.height_u, Math.min(newPositionU, rack.height));
     
     // 检查新位置是否与其他设备冲突
-    const hasConflict = devices.some(d => {
+    const hasConflict = tempDevices.some(d => {
       if (d.id === device.id) return false;
       // 考虑设备高度，检查是否有重叠
       const deviceStart = newPositionU - device.height_u + 1;
@@ -139,36 +140,20 @@ const RackView = () => {
     });
 
     if (hasConflict) {
-      message.error('该位置已被其他设备占用');
       // 重置位置到原始位置
       node.y(stageHeight - device.position_u * scale);
       node.x(0);
+      message.error('该位置已被其他设备占用');
       return;
     }
 
-    try {
-      await axios.put(`http://localhost:8000/devices/${device.id}/position`, {
-        position_u: newPositionU,
-        rack_id: parseInt(id, 10),
-        horizontal_position: horizontalPosition
-      });
-      
-      // 更新本地状态
-      setDevices(devices.map(d => {
-        if (d.id === device.id) {
-          return { ...d, position_u: newPositionU, horizontal_position: horizontalPosition };
-        }
-        return d;
-      }));
-      
-      message.success('设备位置已更新');
-    } catch (error) {
-      console.error('Error updating device position:', error);
-      message.error('更新设备位置失败');
-      // 重置位置到原始位置
-      node.y(stageHeight - device.position_u * scale);
-      node.x(0);
-    }
+    // 更新临时状态
+    setTempDevices(tempDevices.map(d => {
+      if (d.id === device.id) {
+        return { ...d, position_u: newPositionU, horizontal_position: horizontalPosition };
+      }
+      return d;
+    }));
   };
 
   const handleDeleteDevice = async (deviceId) => {
@@ -197,6 +182,7 @@ const RackView = () => {
   // 进入编辑模式
   const enterEditMode = () => {
     setOriginalDevices([...devices]);  // 保存原始位置
+    setTempDevices([...devices]);      // 初始化临时位置
     setIsEditMode(true);
   };
 
@@ -204,19 +190,22 @@ const RackView = () => {
   const finishEdit = async () => {
     try {
       // 找出位置发生变化的设备
-      const changedDevices = devices.filter(device => {
-        const original = originalDevices.find(orig => orig.id === device.id);
-        return original.position_u !== device.position_u;
+      const changedDevices = tempDevices.filter(temp => {
+        const original = originalDevices.find(orig => orig.id === temp.id);
+        return original.position_u !== temp.position_u || 
+               original.horizontal_position !== temp.horizontal_position;
       });
 
       // 批量更新位置
       await Promise.all(changedDevices.map(device => 
         axios.put(`http://localhost:8000/devices/${device.id}/position`, {
           position_u: device.position_u,
-          rack_id: parseInt(id, 10)
+          rack_id: parseInt(id, 10),
+          horizontal_position: device.horizontal_position
         })
       ));
 
+      setDevices(tempDevices);
       setIsEditMode(false);
       message.success('设备布局更新成功');
     } catch (error) {
@@ -269,6 +258,36 @@ const RackView = () => {
       message.error(`更新设备信息失败: ${errorMessage}`);
     }
   };
+
+  const renderDeviceTooltip = (device) => (
+    <div
+      style={{
+        position: 'absolute',
+        left: '310px', // 固定在Stage右侧
+        top: `${rack.height * GRID_SIZE - device.position_u * GRID_SIZE}px`, // 与设备高度对齐
+        backgroundColor: 'white',
+        padding: '8px 12px',
+        borderRadius: '4px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        zIndex: 1000,
+        fontSize: '12px',
+        lineHeight: '1.5',
+        display: hoveredDevice?.id === device.id ? 'block' : 'none',
+        width: '200px',
+        border: `1px solid ${DeviceTypeColors[device.device_type]}`
+      }}
+    >
+      <p style={{ margin: '4px 0' }}><strong>设备名称：</strong>{device.name}</p>
+      <p style={{ margin: '4px 0' }}><strong>类型：</strong>{device.device_type}</p>
+      <p style={{ margin: '4px 0' }}><strong>制造商：</strong>{device.manufacturer}</p>
+      <p style={{ margin: '4px 0' }}><strong>型号：</strong>{device.model}</p>
+      <p style={{ margin: '4px 0' }}><strong>序列号：</strong>{device.serial_number}</p>
+      <p style={{ margin: '4px 0' }}><strong>位置：</strong>{device.position_u}U</p>
+      <p style={{ margin: '4px 0' }}><strong>高度：</strong>{device.height_u}U</p>
+      <p style={{ margin: '4px 0' }}><strong>功率：</strong>{device.power_consumption}W</p>
+      {device.ip_address && <p style={{ margin: '4px 0' }}><strong>IP地址：</strong>{device.ip_address}</p>}
+    </div>
+  );
 
   if (!rack) {
     return <div style={{ textAlign: 'center', padding: '50px' }}>
@@ -399,100 +418,87 @@ const RackView = () => {
             extra={isEditMode && <Tag color="warning">编辑模式：可拖动设备调整位置</Tag>}
           >
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <Stage
-                ref={stageRef}
-                width={300}
-                height={rack.height * GRID_SIZE}  // 使用新的网格高度
-                style={{ 
-                  border: '1px solid #e8e8e8',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(to bottom, #fafafa, #f5f5f5)',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                }}
-              >
-                <Layer>
-                  {/* 绘制背景网格 - 只保留横线 */}
-                  {Array.from({ length: rack.height }).map((_, i) => (
-                    <React.Fragment key={`grid-${i}`}>
-                      <Rect
-                        x={0}
-                        y={i * GRID_SIZE}
-                        width={300}
-                        height={GRID_SIZE}
-                        stroke="rgba(0,0,0,0.03)"
-                        strokeWidth={0.5}
-                      />
-                    </React.Fragment>
-                  ))}
-
-                  {/* 绘制设备 */}
-                  {devices.map((device) => {
-                    const isHovered = hoveredDevice?.id === device.id;
-                    const isSelected = selectedDevice?.id === device.id;
-                    return (
-                      <Group
-                        key={device.id}
-                        x={device.horizontal_position || 0}
-                        y={rack.height * GRID_SIZE - device.position_u * GRID_SIZE}
-                        draggable={isEditMode}  // 只在编辑模式下可拖动
-                        onDragStart={() => setSelectedDevice(device)}
-                        onDragMove={(e) => handleDeviceDragMove(device, e)}
-                        onDragEnd={(e) => handleDeviceDragEnd(device, e)}
-                        onMouseEnter={() => setHoveredDevice(device)}
-                        onMouseLeave={() => setHoveredDevice(null)}
-                      >
+              <div style={{ position: 'relative' }}>
+                <Stage
+                  ref={stageRef}
+                  width={300}
+                  height={rack.height * GRID_SIZE}
+                  style={{ 
+                    border: '1px solid #e8e8e8',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(to bottom, #fafafa, #f5f5f5)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                  }}
+                >
+                  <Layer>
+                    {/* 绘制背景网格 - 只保留横线 */}
+                    {Array.from({ length: rack.height }).map((_, i) => (
+                      <React.Fragment key={`grid-${i}`}>
                         <Rect
+                          x={0}
+                          y={i * GRID_SIZE}
                           width={300}
-                          height={device.height_u * GRID_SIZE - 4}  // 根据U数计算高度
-                          y={2}
-                          fill={isHovered ? `${DeviceTypeColors[device.device_type]}15` : '#fff'}
-                          stroke={DeviceTypeColors[device.device_type]}
-                          strokeWidth={isSelected ? 2 : 1}
-                          shadowColor="black"
-                          shadowBlur={isHovered ? 15 : 8}
-                          shadowOpacity={isHovered ? 0.2 : 0.1}
-                          cornerRadius={4}
+                          height={GRID_SIZE}
+                          stroke="rgba(0,0,0,0.03)"
+                          strokeWidth={0.5}
                         />
-                        <Text
-                          text={`${device.name} (${device.height_u}U)`}
-                          fontSize={13}
-                          fontStyle="bold"
-                          fill={DeviceTypeColors[device.device_type]}
-                          width={280}
-                          align="left"
-                          x={16}
-                          y={12}
-                        />
-                        <Text
-                          text={`${device.manufacturer} ${device.model}`}
-                          fontSize={11}
-                          fill="#666"
-                          width={280}
-                          align="left"
-                          x={16}
-                          y={34}
-                        />
-                        <Text
-                          text={`${device.power_consumption}W | ${device.ip_address || 'N/A'}`}
-                          fontSize={11}
-                          fill="#666"
-                          width={280}
-                          align="right"
-                          x={16}
-                          y={device.height_u * GRID_SIZE - 24}  // 底部显示功率和IP
-                        />
-                        <Rect
-                          width={4}
-                          height={device.height_u * GRID_SIZE - 4}  // 根据U数计算高度
-                          y={2}
-                          fill={DeviceTypeColors[device.device_type]}
-                          cornerRadius={[2, 0, 0, 2]}
-                        />
-                      </Group>
-                    );
-                  })}
-                </Layer>
-              </Stage>
+                      </React.Fragment>
+                    ))}
+
+                    {/* 绘制设备 */}
+                    {(isEditMode ? tempDevices : devices).map((device) => {
+                      const isHovered = hoveredDevice?.id === device.id;
+                      const isSelected = selectedDevice?.id === device.id;
+                      return (
+                        <Group
+                          key={device.id}
+                          x={device.horizontal_position || 0}
+                          y={rack.height * GRID_SIZE - device.position_u * GRID_SIZE}
+                          draggable={isEditMode}
+                          onDragStart={() => setSelectedDevice(device)}
+                          onDragMove={(e) => handleDeviceDragMove(device, e)}
+                          onDragEnd={(e) => handleDeviceDragEnd(device, e)}
+                          onMouseEnter={() => {
+                            setHoveredDevice(device);
+                          }}
+                          onMouseLeave={() => setHoveredDevice(null)}
+                        >
+                          <Rect
+                            width={300}
+                            height={device.height_u * GRID_SIZE - 1}  // 减小间隙
+                            y={0.5}  // 减小上边距
+                            fill={isHovered ? `${DeviceTypeColors[device.device_type]}15` : '#fff'}
+                            stroke={DeviceTypeColors[device.device_type]}
+                            strokeWidth={isSelected ? 1.5 : 0.5}  // 减小边框宽度
+                            shadowColor="black"
+                            shadowBlur={isHovered ? 10 : 5}  // 减小阴影
+                            shadowOpacity={isHovered ? 0.2 : 0.1}
+                            cornerRadius={2}  // 减小圆角
+                          />
+                          <Text
+                            text={device.name}
+                            fontSize={10}  // 减小字体大小
+                            fontStyle="bold"
+                            fill={DeviceTypeColors[device.device_type]}
+                            width={280}
+                            align="center"
+                            x={10}
+                            y={(device.height_u * GRID_SIZE - 1) / 2 - 5}  // 调整文字垂直位置
+                          />
+                          <Rect
+                            width={2}  // 减小指示条宽度
+                            height={device.height_u * GRID_SIZE - 1}  // 减小间隙
+                            y={0.5}  // 减小上边距
+                            fill={DeviceTypeColors[device.device_type]}
+                            cornerRadius={[1, 0, 0, 1]}  // 减小圆角
+                          />
+                        </Group>
+                      );
+                    })}
+                  </Layer>
+                </Stage>
+                {devices.map(device => renderDeviceTooltip(device))}
+              </div>
             </div>
           </Card>
         </Col>
