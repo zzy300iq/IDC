@@ -12,11 +12,13 @@ class DataCenter(Base):
     name = Column(String(100), unique=True, index=True)
     location = Column(String(200))
     floor_plan = Column(JSON)  # 存储机房平面图数据
+    facilities_data = Column(JSON)  # 存储机房设施数据，包括空调、监控等
     total_area = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     racks = relationship("Rack", back_populates="datacenter")
+    facilities = relationship("Facility", back_populates="datacenter")
 
 class Rack(Base):
     __tablename__ = "racks"
@@ -74,4 +76,22 @@ class Port(Base):
     
     device = relationship("Device", foreign_keys=[device_id], back_populates="ports")
     remote_device = relationship("Device", foreign_keys=[remote_device_id])
-    remote_port = relationship("Port", foreign_keys=[remote_port_id], remote_side=[id]) 
+    remote_port = relationship("Port", foreign_keys=[remote_port_id], remote_side=[id])
+
+class Facility(Base):
+    __tablename__ = "facilities"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    datacenter_id = Column(Integer, ForeignKey("datacenters.id"))
+    name = Column(String(100))
+    facility_type = Column(String(50))  # 设施类型：空调、监控、七氟丙烷等
+    position_x = Column(Float)  # X坐标
+    position_y = Column(Float)  # Y坐标
+    rotation = Column(Float)    # 旋转角度
+    width = Column(Float)       # 宽度（米）
+    height = Column(Float)      # 高度（米）
+    properties = Column(JSON)   # 其他属性，如功率、容量等
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    datacenter = relationship("DataCenter", back_populates="facilities") 

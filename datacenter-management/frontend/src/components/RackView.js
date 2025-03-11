@@ -71,6 +71,27 @@ const RackView = () => {
     }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 在数据加载完成后恢复滚动位置
+  useEffect(() => {
+    if (rack && devices.length > 0) {
+      const preserveScroll = sessionStorage.getItem('preserveRackViewScroll');
+      const savedScrollPosition = sessionStorage.getItem('rackViewScrollPosition');
+      
+      if (preserveScroll === 'true' && savedScrollPosition) {
+        // 使用setTimeout确保DOM完全渲染后再滚动
+        setTimeout(() => {
+          window.scrollTo({
+            top: parseInt(savedScrollPosition),
+            behavior: 'instant'
+          });
+          sessionStorage.removeItem('preserveRackViewScroll');
+        }, 100);
+      } else if (!preserveScroll) {
+        sessionStorage.removeItem('rackViewScrollPosition');
+      }
+    }
+  }, [rack, devices]); // 当机柜和设备数据都加载完成时执行
+
   const handleCreateDevice = async (values) => {
     try {
       await axios.post('http://localhost:8000/devices/', {
@@ -260,6 +281,8 @@ const RackView = () => {
 
   const handleDeviceClick = (device, e) => {
     if (!isEditMode) {
+      // 保存当前滚动位置
+      sessionStorage.setItem('rackViewScrollPosition', window.scrollY.toString());
       navigate(`/device/${device.id}`);
     }
   };
@@ -316,7 +339,11 @@ const RackView = () => {
     <div style={{ padding: '24px' }}>
       <Button
         icon={<ArrowLeftOutlined />}
-        onClick={() => navigate(`/datacenter/${rack?.datacenter_id}`)}
+        onClick={() => {
+          // 设置标记以便恢复滚动位置
+          sessionStorage.setItem('preserveDatacenterViewScroll', 'true');
+          navigate(`/datacenter/${rack?.datacenter_id}`);
+        }}
         style={{ marginBottom: 16 }}
       >
         返回机房视图
@@ -518,7 +545,18 @@ const RackView = () => {
         </Col>
 
         <Col span={8}>
-          <Card title="设备列表" style={{ marginBottom: '24px' }}>
+          <Card 
+            title="设备列表" 
+            style={{ 
+              marginBottom: '24px',
+              height: `${rack.height * GRID_SIZE + 73}px` // 73px是Card的header高度
+            }}
+            bodyStyle={{
+              height: `${rack.height * GRID_SIZE}px`,
+              overflowY: 'auto',
+              padding: '12px'
+            }}
+          >
             {devices.map((device) => (
               <div
                 key={device.id}
@@ -531,7 +569,13 @@ const RackView = () => {
                   transition: 'all 0.3s',
                   background: hoveredDevice?.id === device.id ? '#e6f7ff' : '#fff'
                 }}
-                onClick={() => !isEditMode && navigate(`/device/${device.id}`)}
+                onClick={() => {
+                  if (!isEditMode) {
+                    // 保存当前滚动位置
+                    sessionStorage.setItem('rackViewScrollPosition', window.scrollY.toString());
+                    navigate(`/device/${device.id}`);
+                  }
+                }}
                 onMouseEnter={() => setHoveredDevice(device)}
                 onMouseLeave={() => setHoveredDevice(null)}
               >

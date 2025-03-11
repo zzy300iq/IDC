@@ -5,6 +5,7 @@ from typing import List
 import models
 import schemas
 from database import engine, get_db
+from pydantic import BaseModel
 
 # 创建数据库表
 models.Base.metadata.create_all(bind=engine)
@@ -208,7 +209,30 @@ def get_ports(device_id: int = None, skip: int = 0, limit: int = 100, db: Sessio
     query = db.query(models.Port)
     if device_id:
         query = query.filter(models.Port.device_id == device_id)
-    return query.offset(skip).limit(limit).all()
+    # 添加join查询以获取设备信息，明确指定join条件
+    query = query.join(
+        models.Device,
+        models.Port.device_id == models.Device.id
+    ).add_columns(
+        models.Device.name.label('device_name'),
+        models.Device.device_type.label('device_type'),
+        models.Device.manufacturer.label('manufacturer'),
+        models.Device.model.label('model')
+    )
+    results = query.offset(skip).limit(limit).all()
+    
+    # 转换查询结果为响应格式
+    ports = []
+    for result in results:
+        port = result[0].__dict__
+        port['device'] = {
+            'name': result.device_name,
+            'device_type': result.device_type,
+            'manufacturer': result.manufacturer,
+            'model': result.model
+        }
+        ports.append(port)
+    return ports
 
 @app.get("/ports/{port_id}", response_model=schemas.Port)
 def get_port(port_id: int, db: Session = Depends(get_db)):
@@ -240,50 +264,178 @@ def delete_port(port_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "端口已成功删除"}
 
+# 添加端口连接请求模型
+class PortConnectionRequest(BaseModel):
+    remote_port_id: int
+
 @app.put("/ports/{port_id}/connect")
 def connect_ports(
-    port_id: int, 
-    remote_port_id: int,
+    port_id: int,
+    connection: PortConnectionRequest,
     db: Session = Depends(get_db)
 ):
-    # 获取两个端口
-    port1 = db.query(models.Port).filter(models.Port.id == port_id).first()
-    port2 = db.query(models.Port).filter(models.Port.id == remote_port_id).first()
-    
-    if not port1 or not port2:
-        raise HTTPException(status_code=404, detail="端口未找到")
-    
-    if port1.is_occupied or port2.is_occupied:
-        raise HTTPException(status_code=400, detail="端口已被占用")
-    
-    # 建立连接
-    port1.remote_device_id = port2.device_id
-    port1.remote_port_id = port2.id
-    port1.is_occupied = True
-    
-    port2.remote_device_id = port1.device_id
-    port2.remote_port_id = port1.id
-    port2.is_occupied = True
-    
-    db.commit()
-    return {"message": "端口连接成功"}
+    try:
+        print(f"尝试连接端口 {port_id} 和 {connection.remote_port_id}")
+        
+        # 获取两个端口
+        port1 = db.query(models.Port).filter(models.Port.id == port_id).first()
+        port2 = db.query(models.Port).filter(models.Port.id == connection.remote_port_id).first()
+        
+        if not port1:
+            print(f"源端口 {port_id} 未找到")
+            raise HTTPException(status_code=404, detail=f"源端口 {port_id} 未找到")
+        if not port2:
+            print(f"目标端口 {connection.remote_port_id} 未找到")
+            raise HTTPException(status_code=404, detail=f"目标端口 {connection.remote_port_id} 未找到")
+        
+        print(f"源端口: {port1.name}, 类型: {port1.type}, 速率: {port1.speed}")
+        print(f"目标端口: {port2.name}, 类型: {port2.type}, 速率: {port2.speed}")
+        
+        # 检查端口是否已被占用
+        if port1.is_occupied:
+            print(f"源端口 {port1.name} 已被占用")
+            raise HTTPException(status_code=400, detail=f"源端口 {port1.name} 已被占用")
+        if port2.is_occupied:
+            print(f"目标端口 {port2.name} 已被占用")
+            raise HTTPException(status_code=400, detail=f"目标端口 {port2.name} 已被占用")
+        
+        # 检查端口类型是否匹配
+        if port1.type != port2.type:
+            print(f"端口类型不匹配: {port1.type} != {port2.type}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"端口类型不匹配：源端口类型 {port1.type}，目标端口类型 {port2.type}"
+            )
+        
+        # 检查端口速率是否匹配
+        if port1.speed != port2.speed:
+            print(f"端口速率不匹配: {port1.speed} != {port2.speed}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"端口速率不匹配：源端口速率 {port1.speed}Mbps，目标端口速率 {port2.speed}Mbps"
+            )
+        
+        # 获取设备信息
+        device1 = db.query(models.Device).filter(models.Device.id == port1.device_id).first()
+        device2 = db.query(models.Device).filter(models.Device.id == port2.device_id).first()
+        
+        print(f"正在连接设备 {device1.name} 的端口 {port1.name} 和设备 {device2.name} 的端口 {port2.name}")
+        
+        # 建立连接
+        port1.remote_device_id = port2.device_id
+        port1.remote_port_id = port2.id
+        port1.is_occupied = True
+        
+        port2.remote_device_id = port1.device_id
+        port2.remote_port_id = port1.id
+        port2.is_occupied = True
+        
+        db.commit()
+        print("端口连接成功")
+        
+        return {
+            "message": f"端口连接成功：{device1.name}({port1.name}) <-> {device2.name}({port2.name})",
+            "connection": {
+                "source": {
+                    "device": device1.name,
+                    "port": port1.name,
+                    "type": port1.type,
+                    "speed": port1.speed
+                },
+                "target": {
+                    "device": device2.name,
+                    "port": port2.name,
+                    "type": port2.type,
+                    "speed": port2.speed
+                }
+            }
+        }
+        
+    except HTTPException as he:
+        print(f"HTTP异常: {he.detail}")
+        raise he
+    except Exception as e:
+        print(f"连接端口时发生错误: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"连接端口时发生错误: {str(e)}")
 
 @app.put("/ports/{port_id}/disconnect")
 def disconnect_port(port_id: int, db: Session = Depends(get_db)):
-    port = db.query(models.Port).filter(models.Port.id == port_id).first()
-    if not port:
-        raise HTTPException(status_code=404, detail="端口未找到")
-    
-    if port.remote_port_id:
-        remote_port = db.query(models.Port).filter(models.Port.id == port.remote_port_id).first()
+    try:
+        port = db.query(models.Port).filter(models.Port.id == port_id).first()
+        if not port:
+            raise HTTPException(status_code=404, detail="端口未找到")
+        
+        if not port.is_occupied:
+            raise HTTPException(status_code=400, detail="该端口未被连接")
+        
+        # 获取远端端口
+        remote_port = None
+        if port.remote_port_id:
+            remote_port = db.query(models.Port).filter(models.Port.id == port.remote_port_id).first()
+        
+        # 断开连接
         if remote_port:
             remote_port.remote_device_id = None
             remote_port.remote_port_id = None
             remote_port.is_occupied = False
+        
+        port.remote_device_id = None
+        port.remote_port_id = None
+        port.is_occupied = False
+        
+        db.commit()
+        return {"message": "端口断开连接成功"}
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"断开端口连接时发生错误: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"断开端口连接时发生错误: {str(e)}")
+
+# 设施相关接口
+@app.post("/facilities/", response_model=schemas.Facility)
+def create_facility(facility: schemas.FacilityCreate, db: Session = Depends(get_db)):
+    db_facility = models.Facility(**facility.dict())
+    db.add(db_facility)
+    db.commit()
+    db.refresh(db_facility)
+    return db_facility
+
+@app.get("/facilities/", response_model=List[schemas.Facility])
+def get_facilities(datacenter_id: int = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    query = db.query(models.Facility)
+    if datacenter_id:
+        query = query.filter(models.Facility.datacenter_id == datacenter_id)
+    return query.offset(skip).limit(limit).all()
+
+@app.get("/facilities/{facility_id}", response_model=schemas.Facility)
+def get_facility(facility_id: int, db: Session = Depends(get_db)):
+    facility = db.query(models.Facility).filter(models.Facility.id == facility_id).first()
+    if facility is None:
+        raise HTTPException(status_code=404, detail="设施未找到")
+    return facility
+
+@app.put("/facilities/{facility_id}", response_model=schemas.Facility)
+def update_facility(facility_id: int, facility: schemas.FacilityCreate, db: Session = Depends(get_db)):
+    db_facility = db.query(models.Facility).filter(models.Facility.id == facility_id).first()
+    if db_facility is None:
+        raise HTTPException(status_code=404, detail="设施未找到")
     
-    port.remote_device_id = None
-    port.remote_port_id = None
-    port.is_occupied = False
+    for key, value in facility.dict().items():
+        setattr(db_facility, key, value)
     
     db.commit()
-    return {"message": "端口断开连接成功"} 
+    db.refresh(db_facility)
+    return db_facility
+
+@app.delete("/facilities/{facility_id}")
+def delete_facility(facility_id: int, db: Session = Depends(get_db)):
+    facility = db.query(models.Facility).filter(models.Facility.id == facility_id).first()
+    if facility is None:
+        raise HTTPException(status_code=404, detail="设施未找到")
+    
+    db.delete(facility)
+    db.commit()
+    return {"message": "设施已成功删除"} 

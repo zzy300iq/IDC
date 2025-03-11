@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Modal, Form, Input, InputNumber, Select, message, Row, Col, Statistic, Tag, Table, Tooltip, Space } from 'antd';
+import { Card, Button, Modal, Form, Input, InputNumber, Select, message, Row, Col, Statistic, Tag, Table, Tooltip, Space, Popconfirm } from 'antd';
 import { ArrowLeftOutlined, ApiOutlined, LinkOutlined, DisconnectOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -102,7 +102,16 @@ const DeviceView = () => {
   const showConnectModal = async (portId) => {
     try {
       const response = await axios.get('http://localhost:8000/ports/');
-      setAvailablePorts(response.data.filter(p => 
+      const ports = response.data.map(port => ({
+        ...port,
+        device: {
+          name: port.device?.name || '-',
+          device_type: port.device?.device_type || '-',
+          manufacturer: port.device?.manufacturer || '-',
+          model: port.device?.model || '-'
+        }
+      }));
+      setAvailablePorts(ports.filter(p => 
         p.device_id !== parseInt(id, 10) && !p.is_occupied
       ));
       setSelectedPortId(portId);
@@ -115,15 +124,16 @@ const DeviceView = () => {
 
   const handleConnectPort = async (remotePortId) => {
     try {
-      await axios.put(`http://localhost:8000/ports/${selectedPortId}/connect`, {
+      const response = await axios.put(`http://localhost:8000/ports/${selectedPortId}/connect`, {
         remote_port_id: remotePortId
       });
-      fetchPorts();
+      await fetchPorts();  // 重新获取端口列表
       setIsConnectModalVisible(false);
-      message.success('端口连接成功');
+      message.success(response.data.message || '端口连接成功');
     } catch (error) {
       console.error('Error connecting ports:', error);
-      message.error('端口连接失败');
+      const errorMessage = error.response?.data?.detail || '端口连接失败';
+      message.error(typeof errorMessage === 'string' ? errorMessage : '端口连接失败');
     }
   };
 
@@ -223,12 +233,26 @@ const DeviceView = () => {
             </Tooltip>
           )}
           <Tooltip title="删除端口">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDeletePort(record.id)}
-            />
+            <Popconfirm
+              title="确定要删除这个端口吗？"
+              description={
+                <div>
+                  <p>端口名称：{record.name}</p>
+                  <p>端口类型：{record.type}</p>
+                  <p style={{ color: '#ff4d4f' }}>删除后将无法恢复！</p>
+                </div>
+              }
+              onConfirm={() => handleDeletePort(record.id)}
+              okText="确定删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+              />
+            </Popconfirm>
           </Tooltip>
         </Space>
       ),
@@ -254,7 +278,11 @@ const DeviceView = () => {
     <div style={{ padding: '24px' }}>
       <Button
         icon={<ArrowLeftOutlined />}
-        onClick={() => navigate(`/rack/${device.rack_id}`)}
+        onClick={() => {
+          // 返回机柜视图时不清除滚动位置
+          sessionStorage.setItem('preserveRackViewScroll', 'true');
+          navigate(`/rack/${device.rack_id}`);
+        }}
         style={{ marginBottom: 16 }}
       >
         返回机柜视图
@@ -420,23 +448,47 @@ const DeviceView = () => {
         open={isConnectModalVisible}
         onCancel={() => setIsConnectModalVisible(false)}
         footer={null}
+        width={800}
       >
         <Table
           columns={[
             {
               title: '设备名称',
-              dataIndex: ['device', 'name'],
               key: 'device_name',
+              render: (_, record) => (
+                <Space>
+                  {record.device?.name}
+                  {record.device?.device_type && (
+                    <Tag color="blue">{record.device.device_type}</Tag>
+                  )}
+                </Space>
+              ),
             },
             {
-              title: '端口名称',
-              dataIndex: 'name',
-              key: 'name',
+              title: '设备型号',
+              key: 'device_model',
+              render: (_, record) => (
+                `${record.device?.manufacturer || ''} ${record.device?.model || ''}`.trim() || '-'
+              ),
             },
             {
-              title: '端口类型',
-              dataIndex: 'type',
-              key: 'type',
+              title: '端口信息',
+              key: 'port_info',
+              render: (_, record) => (
+                <Space direction="vertical" size="small">
+                  <div>名称：{record.name || '-'}</div>
+                  <div>
+                    {record.type && <Tag color="green">{record.type}</Tag>}
+                    {record.speed && <Tag color="purple">{record.speed} Mbps</Tag>}
+                  </div>
+                </Space>
+              ),
+            },
+            {
+              title: '业务信息',
+              dataIndex: 'business_info',
+              key: 'business_info',
+              render: (text) => text || '-'
             },
             {
               title: '操作',
@@ -446,6 +498,7 @@ const DeviceView = () => {
                   type="primary"
                   icon={<LinkOutlined />}
                   onClick={() => handleConnectPort(record.id)}
+                  disabled={record.is_occupied}
                 >
                   连接
                 </Button>

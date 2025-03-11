@@ -34,25 +34,25 @@ try:
 
     # 创建示例机柜
     racks = [
-        # A列机柜
-        Rack(name="A01", datacenter_id=datacenter.id, position_x=2, position_y=2, height=42, width=0.6, depth=1.0, max_power=5.0),
-        Rack(name="A02", datacenter_id=datacenter.id, position_x=2, position_y=4, height=42, width=0.6, depth=1.0, max_power=5.0),
-        Rack(name="A03", datacenter_id=datacenter.id, position_x=2, position_y=6, height=42, width=0.6, depth=1.0, max_power=5.0),
+        # A列机柜 (每个机柜宽0.6米，深1.0米，对应2.4格和4格)
+        Rack(name="A01", datacenter_id=datacenter.id, position_x=8, position_y=8, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="A02", datacenter_id=datacenter.id, position_x=8, position_y=16, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="A03", datacenter_id=datacenter.id, position_x=8, position_y=24, height=42, width=0.6, depth=1.0, max_power=5.0),
         
         # B列机柜
-        Rack(name="B01", datacenter_id=datacenter.id, position_x=4, position_y=2, height=42, width=0.6, depth=1.0, max_power=5.0),
-        Rack(name="B02", datacenter_id=datacenter.id, position_x=4, position_y=4, height=42, width=0.6, depth=1.0, max_power=5.0),
-        Rack(name="B03", datacenter_id=datacenter.id, position_x=4, position_y=6, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="B01", datacenter_id=datacenter.id, position_x=16, position_y=8, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="B02", datacenter_id=datacenter.id, position_x=16, position_y=16, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="B03", datacenter_id=datacenter.id, position_x=16, position_y=24, height=42, width=0.6, depth=1.0, max_power=5.0),
         
         # C列机柜
-        Rack(name="C01", datacenter_id=datacenter.id, position_x=6, position_y=2, height=42, width=0.6, depth=1.0, max_power=5.0),
-        Rack(name="C02", datacenter_id=datacenter.id, position_x=6, position_y=4, height=42, width=0.6, depth=1.0, max_power=5.0),
-        Rack(name="C03", datacenter_id=datacenter.id, position_x=6, position_y=6, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="C01", datacenter_id=datacenter.id, position_x=24, position_y=8, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="C02", datacenter_id=datacenter.id, position_x=24, position_y=16, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="C03", datacenter_id=datacenter.id, position_x=24, position_y=24, height=42, width=0.6, depth=1.0, max_power=5.0),
         
         # D列机柜
-        Rack(name="D01", datacenter_id=datacenter.id, position_x=8, position_y=2, height=42, width=0.6, depth=1.0, max_power=5.0),
-        Rack(name="D02", datacenter_id=datacenter.id, position_x=8, position_y=4, height=42, width=0.6, depth=1.0, max_power=5.0),
-        Rack(name="D03", datacenter_id=datacenter.id, position_x=8, position_y=6, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="D01", datacenter_id=datacenter.id, position_x=32, position_y=8, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="D02", datacenter_id=datacenter.id, position_x=32, position_y=16, height=42, width=0.6, depth=1.0, max_power=5.0),
+        Rack(name="D03", datacenter_id=datacenter.id, position_x=32, position_y=24, height=42, width=0.6, depth=1.0, max_power=5.0),
     ]
 
     for rack in racks:

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 from datetime import datetime
 
 # Port schemas
@@ -15,11 +15,21 @@ class PortBase(BaseModel):
 class PortCreate(PortBase):
     device_id: int
 
+class DeviceInfo(BaseModel):
+    name: str
+    device_type: str
+    manufacturer: str
+    model: str
+
+    class Config:
+        from_attributes = True
+
 class Port(PortBase):
     id: int
     device_id: int
     created_at: datetime
     updated_at: datetime
+    device: Optional[DeviceInfo] = None
 
     class Config:
         from_attributes = True
@@ -55,6 +65,7 @@ class DataCenterBase(BaseModel):
     name: str
     location: str
     floor_plan: Optional[Dict] = None
+    facilities_data: Optional[Dict] = None
     total_area: float
 
 class DataCenterCreate(DataCenterBase):
@@ -97,4 +108,26 @@ class Rack(RackBase):
 class DevicePosition(BaseModel):
     rack_id: int
     position_u: int
-    horizontal_position: Optional[int] = None 
+    horizontal_position: Optional[int] = None
+
+class FacilityBase(BaseModel):
+    name: str
+    facility_type: str
+    position_x: float
+    position_y: float
+    rotation: float = 0
+    width: float
+    height: float
+    properties: Optional[Dict] = None
+
+class FacilityCreate(FacilityBase):
+    datacenter_id: int
+
+class Facility(FacilityBase):
+    id: int
+    datacenter_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True 
