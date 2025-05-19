@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from 'antd';
-import RoomList from './components/RoomList';
+import DataCenterList from './components/DataCenterList';
 import RoomView from './components/RoomView';
 import RackView from './components/RackView';
 import DeviceView from './components/DeviceView';
@@ -18,7 +18,7 @@ const App = () => {
         </Header>
         <Content style={{ padding: '24px' }}>
           <Routes>
-            <Route path="/" element={<RoomList />} />
+            <Route path="/" element={<DataCenterList />} />
             <Route path="/datacenter/:id" element={<RoomView />} />
             <Route path="/rack/:id" element={<RackView />} />
             <Route path="/device/:id" element={<DeviceView />} />

@@ -287,35 +287,50 @@ const RackView = () => {
     }
   };
 
-  const renderDeviceTooltip = (device) => (
-    <div
-      style={{
-        position: 'absolute',
-        left: '310px', // 固定在Stage右侧
-        top: `${rack.height * GRID_SIZE - device.position_u * GRID_SIZE}px`, // 与设备高度对齐
-        backgroundColor: 'white',
-        padding: '8px 12px',
-        borderRadius: '4px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-        zIndex: 1000,
-        fontSize: '12px',
-        lineHeight: '1.5',
-        display: hoveredDevice?.id === device.id ? 'block' : 'none',
-        width: '200px',
-        border: `1px solid ${DeviceTypeColors[device.device_type]}`
-      }}
-    >
-      <p style={{ margin: '4px 0' }}><strong>设备名称：</strong>{device.name}</p>
-      <p style={{ margin: '4px 0' }}><strong>类型：</strong>{device.device_type}</p>
-      <p style={{ margin: '4px 0' }}><strong>制造商：</strong>{device.manufacturer}</p>
-      <p style={{ margin: '4px 0' }}><strong>型号：</strong>{device.model}</p>
-      <p style={{ margin: '4px 0' }}><strong>序列号：</strong>{device.serial_number}</p>
-      <p style={{ margin: '4px 0' }}><strong>位置：</strong>{device.position_u}U</p>
-      <p style={{ margin: '4px 0' }}><strong>高度：</strong>{device.height_u}U</p>
-      <p style={{ margin: '4px 0' }}><strong>功率：</strong>{device.power_consumption}W</p>
-      {device.ip_address && <p style={{ margin: '4px 0' }}><strong>IP地址：</strong>{device.ip_address}</p>}
-    </div>
-  );
+  const renderDeviceTooltip = (device) => {
+    // 计算设备在Stage中的位置（从底部往上）
+    const deviceTopPosition = rack.height * GRID_SIZE - device.position_u * GRID_SIZE;
+    // 提示框的高度
+    const tooltipHeight = 220;
+    // 获取Stage的总高度
+    const stageHeight = rack.height * GRID_SIZE;
+    // 判断是否应该向上显示（如果设备在下半部分，就向上显示）
+    const shouldShowAbove = deviceTopPosition > stageHeight / 2;
+
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: '100%', // 位于Stage右侧
+          marginLeft: '10px', // 与Stage保持一定距离
+          top: shouldShowAbove
+            ? `${deviceTopPosition - tooltipHeight + device.height_u * GRID_SIZE}px`
+            : `${deviceTopPosition}px`,
+          backgroundColor: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          fontSize: '12px',
+          lineHeight: '1.5',
+          display: hoveredDevice?.id === device.id ? 'block' : 'none',
+          width: '200px',
+          border: `1px solid ${DeviceTypeColors[device.device_type]}`,
+          transition: 'top 0.2s ease'
+        }}
+      >
+        <p style={{ margin: '4px 0' }}><strong>设备名称：</strong>{device.name}</p>
+        <p style={{ margin: '4px 0' }}><strong>类型：</strong>{device.device_type}</p>
+        <p style={{ margin: '4px 0' }}><strong>制造商：</strong>{device.manufacturer}</p>
+        <p style={{ margin: '4px 0' }}><strong>型号：</strong>{device.model}</p>
+        <p style={{ margin: '4px 0' }}><strong>序列号：</strong>{device.serial_number}</p>
+        <p style={{ margin: '4px 0' }}><strong>位置：</strong>{device.position_u}U</p>
+        <p style={{ margin: '4px 0' }}><strong>高度：</strong>{device.height_u}U</p>
+        <p style={{ margin: '4px 0' }}><strong>功率：</strong>{device.power_consumption}W</p>
+        {device.ip_address && <p style={{ margin: '4px 0' }}><strong>IP地址：</strong>{device.ip_address}</p>}
+      </div>
+    );
+  };
 
   if (!rack) {
     return (
@@ -455,91 +470,98 @@ const RackView = () => {
           <Card 
             title="机柜视图" 
             style={{ marginBottom: '24px' }}
+            bodyStyle={{
+              padding: '24px',
+              display: 'flex',
+              justifyContent: 'center'
+            }}
             extra={isEditMode && <Tag color="warning">编辑模式：可拖动设备调整位置</Tag>}
           >
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <div style={{ position: 'relative' }}>
-                <Stage
-                  ref={stageRef}
-                  width={300}
-                  height={rack.height * GRID_SIZE}
-                  style={{ 
-                    border: '1px solid #e8e8e8',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(to bottom, #fafafa, #f5f5f5)',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                  }}
-                >
-                  <Layer>
-                    {/* 绘制背景网格 - 只保留横线 */}
-                    {Array.from({ length: rack.height }).map((_, i) => (
-                      <React.Fragment key={`grid-${i}`}>
-                        <Rect
-                          x={0}
-                          y={i * GRID_SIZE}
-                          width={300}
-                          height={GRID_SIZE}
-                          stroke="rgba(0,0,0,0.03)"
-                          strokeWidth={0.5}
-                        />
-                      </React.Fragment>
-                    ))}
+            <div style={{ 
+              position: 'relative',
+              height: `${rack.height * GRID_SIZE}px`,
+              width: '300px'
+            }}>
+              <Stage
+                ref={stageRef}
+                width={300}
+                height={rack.height * GRID_SIZE}
+                style={{ 
+                  border: '1px solid #e8e8e8',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(to bottom, #fafafa, #f5f5f5)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                }}
+              >
+                <Layer>
+                  {/* 绘制背景网格 - 只保留横线 */}
+                  {Array.from({ length: rack.height }).map((_, i) => (
+                    <React.Fragment key={`grid-${i}`}>
+                      <Rect
+                        x={0}
+                        y={i * GRID_SIZE}
+                        width={300}
+                        height={GRID_SIZE}
+                        stroke="rgba(0,0,0,0.03)"
+                        strokeWidth={0.5}
+                      />
+                    </React.Fragment>
+                  ))}
 
-                    {/* 绘制设备 */}
-                    {(isEditMode ? tempDevices : devices).map((device) => {
-                      const isHovered = hoveredDevice?.id === device.id;
-                      const isSelected = selectedDevice?.id === device.id;
-                      return (
-                        <Group
-                          key={device.id}
-                          x={device.horizontal_position || 0}
-                          y={rack.height * GRID_SIZE - device.position_u * GRID_SIZE}
-                          draggable={isEditMode}
-                          onDragStart={() => setSelectedDevice(device)}
-                          onDragMove={(e) => handleDeviceDragMove(device, e)}
-                          onDragEnd={(e) => handleDeviceDragEnd(device, e)}
-                          onMouseEnter={() => {
-                            setHoveredDevice(device);
-                          }}
-                          onMouseLeave={() => setHoveredDevice(null)}
-                          onClick={() => handleDeviceClick(device)}
-                        >
-                          <Rect
-                            width={300}
-                            height={device.height_u * GRID_SIZE - 1}  // 减小间隙
-                            y={0.5}  // 减小上边距
-                            fill={isHovered ? `${DeviceTypeColors[device.device_type]}15` : '#fff'}
-                            stroke={DeviceTypeColors[device.device_type]}
-                            strokeWidth={isSelected ? 1.5 : 0.5}  // 减小边框宽度
-                            shadowColor="black"
-                            shadowBlur={isHovered ? 10 : 5}  // 减小阴影
-                            shadowOpacity={isHovered ? 0.2 : 0.1}
-                            cornerRadius={2}  // 减小圆角
-                          />
-                          <Text
-                            text={device.name}
-                            fontSize={10}  // 减小字体大小
-                            fontStyle="bold"
-                            fill={DeviceTypeColors[device.device_type]}
-                            width={280}
-                            align="center"
-                            x={10}
-                            y={(device.height_u * GRID_SIZE - 1) / 2 - 5}  // 调整文字垂直位置
-                          />
-                          <Rect
-                            width={2}  // 减小指示条宽度
-                            height={device.height_u * GRID_SIZE - 1}  // 减小间隙
-                            y={0.5}  // 减小上边距
-                            fill={DeviceTypeColors[device.device_type]}
-                            cornerRadius={[1, 0, 0, 1]}  // 减小圆角
-                          />
-                        </Group>
-                      );
-                    })}
-                  </Layer>
-                </Stage>
-                {devices.map(device => renderDeviceTooltip(device))}
-              </div>
+                  {/* 绘制设备 */}
+                  {(isEditMode ? tempDevices : devices).map((device) => {
+                    const isHovered = hoveredDevice?.id === device.id;
+                    const isSelected = selectedDevice?.id === device.id;
+                    return (
+                      <Group
+                        key={device.id}
+                        x={device.horizontal_position || 0}
+                        y={rack.height * GRID_SIZE - device.position_u * GRID_SIZE}
+                        draggable={isEditMode}
+                        onDragStart={() => setSelectedDevice(device)}
+                        onDragMove={(e) => handleDeviceDragMove(device, e)}
+                        onDragEnd={(e) => handleDeviceDragEnd(device, e)}
+                        onMouseEnter={() => {
+                          setHoveredDevice(device);
+                        }}
+                        onMouseLeave={() => setHoveredDevice(null)}
+                        onClick={() => handleDeviceClick(device)}
+                      >
+                        <Rect
+                          width={300}
+                          height={device.height_u * GRID_SIZE - 1}  // 减小间隙
+                          y={0.5}  // 减小上边距
+                          fill={isHovered ? `${DeviceTypeColors[device.device_type]}15` : '#fff'}
+                          stroke={DeviceTypeColors[device.device_type]}
+                          strokeWidth={isSelected ? 1.5 : 0.5}  // 减小边框宽度
+                          shadowColor="black"
+                          shadowBlur={isHovered ? 10 : 5}  // 减小阴影
+                          shadowOpacity={isHovered ? 0.2 : 0.1}
+                          cornerRadius={2}  // 减小圆角
+                        />
+                        <Text
+                          text={device.name}
+                          fontSize={10}  // 减小字体大小
+                          fontStyle="bold"
+                          fill={DeviceTypeColors[device.device_type]}
+                          width={280}
+                          align="center"
+                          x={10}
+                          y={(device.height_u * GRID_SIZE - 1) / 2 - 5}  // 调整文字垂直位置
+                        />
+                        <Rect
+                          width={2}  // 减小指示条宽度
+                          height={device.height_u * GRID_SIZE - 1}  // 减小间隙
+                          y={0.5}  // 减小上边距
+                          fill={DeviceTypeColors[device.device_type]}
+                          cornerRadius={[1, 0, 0, 1]}  // 减小圆角
+                        />
+                      </Group>
+                    );
+                  })}
+                </Layer>
+              </Stage>
+              {devices.map(device => renderDeviceTooltip(device))}
             </div>
           </Card>
         </Col>
@@ -547,14 +569,11 @@ const RackView = () => {
         <Col span={8}>
           <Card 
             title="设备列表" 
-            style={{ 
-              marginBottom: '24px',
-              height: `${rack.height * GRID_SIZE + 73}px` // 73px是Card的header高度
-            }}
+            style={{ marginBottom: '24px' }}
             bodyStyle={{
-              height: `${rack.height * GRID_SIZE}px`,
+              height: `${rack.height * GRID_SIZE + 48}px`,
               overflowY: 'auto',
-              padding: '12px'
+              padding: '24px'
             }}
           >
             {devices.map((device) => (

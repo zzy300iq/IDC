@@ -992,7 +992,7 @@ const RoomView = () => {
 
         <Col span={6}>
           <Card title="机柜列表" style={{ marginBottom: '24px' }}>
-            <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+            <div style={{ maxHeight: '450px', overflowY: 'auto', paddingRight: '4px' }}>
               {racks.map((rack) => (
                 <div
                   key={rack.id}
@@ -1060,7 +1060,7 @@ const RoomView = () => {
           </Card>
 
           <Card title="设施列表" style={{ marginBottom: '24px' }}>
-            <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+            <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
               {facilities.map((facility) => (
                 <div
                   key={facility.id}
